@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TRIVIA MASTER</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.4.21/vue.global.prod.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Syne:wght@400;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --card: #1a1a28;
+    --accent: #f0e040;
+    --accent2: #ff4d6d;
+    --accent3: #4dffd2;
+    --text: #f0eff5;
+    --muted: #6e6d88;
+    --correct: #4dffd2;
+    --wrong: #ff4d6d;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* Background grid */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(240,224,64,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(240,224,64,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+  }
+
+  /* Glow orbs */
+  body::after {
+    content: '';
+    position: fixed;
+    width: 600px;
+    height: 600px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(240,224,64,0.06) 0%, transparent 70%);
+    top: -200px;
+    left: -200px;
+    pointer-events: none;
+    animation: orbFloat 8s ease-in-out infinite;
+  }
+
+  @keyframes orbFloat {
+    0%, 100% { transform: translate(0,0); }
+    50% { transform: translate(80px, 60px); }
+  }
+
+  #app {
+    width: 100%;
+    max-width: 680px;
+    padding: 20px;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* ===== TITLE SCREEN ===== */
+  .title-screen {
+    text-align: center;
+    animation: fadeIn 0.6s ease;
+  }
+
+  .logo {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(64px, 15vw, 120px);
+    line-height: 0.9;
+    letter-spacing: 4px;
+    color: var(--accent);
+    text-shadow: 0 0 60px rgba(240,224,64,0.4), 4px 4px 0 rgba(240,224,64,0.15);
+    animation: glitch 4s infinite;
+  }
+
+  @keyframes glitch {
+    0%, 90%, 100% { clip-path: none; transform: none; }
+    91% { clip-path: inset(20% 0 60% 0); transform: translateX(-4px); }
+    92% { clip-path: inset(60% 0 20% 0); transform: translateX(4px); }
+    93% { clip-path: none; transform: none; }
+  }
+
+  .subtitle {
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 6px;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-top: 8px;
+    margin-bottom: 48px;
+  }
+
+  .category-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    margin-bottom: 32px;
+  }
+
+  .category-btn {
+    background: var(--card);
+    border: 1px solid rgba(240,224,64,0.15);
+    color: var(--text);
+    padding: 20px 16px;
+    border-radius: 12px;
+    cursor: pointer;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 14px;
+    transition: all 0.2s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .category-btn .icon { font-size: 28px; }
+
+  .category-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, var(--accent), transparent);
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+
+  .category-btn:hover::before,
+  .category-btn.selected::before { opacity: 0.08; }
+
+  .category-btn:hover,
+  .category-btn.selected {
+    border-color: var(--accent);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(240,224,64,0.12);
+  }
+
+  .category-btn.selected { color: var(--accent); }
+
+  .start-btn {
+    width: 100%;
+    background: var(--accent);
+    color: var(--bg);
+    border: none;
+    padding: 18px;
+    border-radius: 12px;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 22px;
+    letter-spacing: 3px;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .start-btn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 32px rgba(240,224,64,0.3);
+  }
+
+  .start-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
+
+  .start-btn::after {
+    content: '▶';
+    margin-left: 10px;
+  }
+
+  /* ===== QUIZ SCREEN ===== */
+  .quiz-screen { animation: slideUp 0.4s ease; }
+
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .hud {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+
+  .hud-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .hud-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 3px;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
+  .hud-value {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 28px;
+    color: var(--accent);
+    line-height: 1;
+  }
+
+  .progress-bar {
+    height: 3px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 2px;
+    margin-bottom: 28px;
+    overflow: hidden;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent3), var(--accent));
+    border-radius: 2px;
+    transition: width 0.4s cubic-bezier(0.4,0,0.2,1);
+  }
+
+  /* Timer circle */
+  .timer-wrap {
+    position: relative;
+    width: 56px;
+    height: 56px;
+  }
+
+  .timer-svg { transform: rotate(-90deg); }
+  .timer-track { fill: none; stroke: rgba(255,255,255,0.08); stroke-width: 3; }
+  .timer-fill {
+    fill: none;
+    stroke-width: 3;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 1s linear, stroke 0.3s;
+  }
+
+  .timer-number {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 20px;
+    color: var(--accent);
+  }
+
+  .q-number {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+
+  .q-text {
+    font-size: clamp(18px, 4vw, 24px);
+    font-weight: 800;
+    line-height: 1.35;
+    margin-bottom: 28px;
+    min-height: 80px;
+  }
+
+  .options {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .option-btn {
+    background: var(--card);
+    border: 1px solid rgba(255,255,255,0.08);
+    color: var(--text);
+    padding: 16px 20px;
+    border-radius: 12px;
+    cursor: pointer;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 15px;
+    text-align: left;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    transition: all 0.18s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .option-label {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 16px;
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255,255,255,0.06);
+    flex-shrink: 0;
+    letter-spacing: 0;
+    transition: all 0.18s;
+  }
+
+  .option-btn:not(.answered):hover {
+    border-color: var(--accent);
+    transform: translateX(4px);
+    box-shadow: -4px 0 0 var(--accent);
+  }
+
+  .option-btn:not(.answered):hover .option-label {
+    background: var(--accent);
+    color: var(--bg);
+  }
+
+  .option-btn.correct {
+    border-color: var(--correct);
+    background: rgba(77,255,210,0.08);
+    animation: correctPop 0.4s ease;
+  }
+
+  .option-btn.correct .option-label {
+    background: var(--correct);
+    color: var(--bg);
+  }
+
+  .option-btn.wrong {
+    border-color: var(--wrong);
+    background: rgba(255,77,109,0.08);
+    animation: wrongShake 0.4s ease;
+  }
+
+  .option-btn.wrong .option-label {
+    background: var(--wrong);
+    color: #fff;
+  }
+
+  @keyframes correctPop {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.02); }
+    100% { transform: scale(1); }
+  }
+
+  @keyframes wrongShake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-6px); }
+    75% { transform: translateX(6px); }
+  }
+
+  .feedback-bar {
+    margin-top: 20px;
+    padding: 14px 20px;
+    border-radius: 12px;
+    font-weight: 700;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    animation: fadeIn 0.3s ease;
+  }
+
+  .feedback-bar.correct {
+    background: rgba(77,255,210,0.1);
+    border: 1px solid rgba(77,255,210,0.3);
+    color: var(--correct);
+  }
+
+  .feedback-bar.wrong {
+    background: rgba(255,77,109,0.1);
+    border: 1px solid rgba(255,77,109,0.3);
+    color: var(--wrong);
+  }
+
+  /* ===== RESULT SCREEN ===== */
+  .result-screen {
+    text-align: center;
+    animation: fadeIn 0.5s ease;
+  }
+
+  .result-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 80px;
+    line-height: 1;
+    margin-bottom: 8px;
+  }
+
+  .result-grade {
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 4px;
+    color: var(--muted);
+    margin-bottom: 40px;
+  }
+
+  .score-ring {
+    position: relative;
+    width: 160px;
+    height: 160px;
+    margin: 0 auto 32px;
+  }
+
+  .score-ring svg { transform: rotate(-90deg); }
+  .ring-track { fill: none; stroke: rgba(255,255,255,0.06); stroke-width: 8; }
+  .ring-fill {
+    fill: none;
+    stroke-width: 8;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 1.5s cubic-bezier(0.4,0,0.2,1);
+  }
+
+  .score-text {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .score-num {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 52px;
+    line-height: 1;
+    color: var(--accent);
+  }
+
+  .score-total {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .stats-row {
+    display: flex;
+    justify-content: center;
+    gap: 32px;
+    margin-bottom: 40px;
+  }
+
+  .stat-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .stat-val {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 32px;
+    color: var(--text);
+  }
+
+  .stat-val.green { color: var(--correct); }
+  .stat-val.red { color: var(--wrong); }
+
+  .stat-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 3px;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
+  .retry-btn {
+    background: transparent;
+    border: 2px solid var(--accent);
+    color: var(--accent);
+    padding: 14px 40px;
+    border-radius: 12px;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 20px;
+    letter-spacing: 3px;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-right: 12px;
+  }
+
+  .retry-btn:hover {
+    background: var(--accent);
+    color: var(--bg);
+    box-shadow: 0 8px 24px rgba(240,224,64,0.3);
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  .combo-flash {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%,-50%);
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 72px;
+    color: var(--accent);
+    text-shadow: 0 0 40px rgba(240,224,64,0.8);
+    pointer-events: none;
+    animation: comboAnim 0.8s ease forwards;
+    z-index: 100;
+  }
+
+  @keyframes comboAnim {
+    0% { opacity: 1; transform: translate(-50%,-50%) scale(0.5); }
+    50% { opacity: 1; transform: translate(-50%,-60%) scale(1.2); }
+    100% { opacity: 0; transform: translate(-50%,-80%) scale(1); }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- TITLE SCREEN -->
+  <div v-if="screen === 'title'" class="title-screen">
+    <div class="logo">TRIVIA<br>MASTER</div>
+    <div class="subtitle">カテゴリーを選択して開始</div>
+
+    <div class="category-grid">
+      <button
+        v-for="cat in categories"
+        :key="cat.id"
+        class="category-btn"
+        :class="{ selected: selectedCategory === cat.id }"
+        @click="selectedCategory = cat.id"
+      >
+        <span class="icon">{{ cat.icon }}</span>
+        {{ cat.name }}
+      </button>
+    </div>
+
+    <button class="start-btn" :disabled="!selectedCategory" @click="startGame">
+      ゲームスタート
+    </button>
+  </div>
+
+  <!-- QUIZ SCREEN -->
+  <div v-else-if="screen === 'quiz'" class="quiz-screen">
+    <div class="hud">
+      <div class="hud-stat">
+        <span class="hud-label">スコア</span>
+        <span class="hud-value">{{ score }}</span>
+      </div>
+      <div class="timer-wrap">
+        <svg class="timer-svg" width="56" height="56" viewBox="0 0 56 56">
+          <circle class="timer-track" cx="28" cy="28" r="24"/>
+          <circle
+            class="timer-fill"
+            cx="28" cy="28" r="24"
+            :stroke="timerColor"
+            :stroke-dasharray="circumference"
+            :stroke-dashoffset="timerOffset"
+          />
+        </svg>
+        <div class="timer-number">{{ timeLeft }}</div>
+      </div>
+      <div class="hud-stat">
+        <span class="hud-label">コンボ</span>
+        <span class="hud-value" style="color: var(--accent3)">×{{ combo }}</span>
+      </div>
+    </div>
+
+    <div class="progress-bar">
+      <div class="progress-fill" :style="{ width: progressPct + '%' }"></div>
+    </div>
+
+    <div class="q-number">問題 {{ currentIndex + 1 }} / {{ questions.length }}</div>
+    <div class="q-text">{{ currentQuestion.question }}</div>
+
+    <div class="options">
+      <button
+        v-for="(opt, i) in currentQuestion.options"
+        :key="i"
+        class="option-btn"
+        :class="{
+          answered: answered,
+          correct: answered && i === currentQuestion.correct,
+          wrong: answered && i === selectedAnswer && i !== currentQuestion.correct
+        }"
+        @click="selectAnswer(i)"
+        :disabled="answered"
+      >
+        <span class="option-label">{{ ['A','B','C','D'][i] }}</span>
+        {{ opt }}
+      </button>
+    </div>
+
+    <div v-if="answered" class="feedback-bar" :class="lastCorrect ? 'correct' : 'wrong'">
+      <span>{{ lastCorrect ? '✓' : '✗' }}</span>
+      <span>{{ lastCorrect ? '正解！' + (combo > 1 ? ' コンボ×'+combo+'!' : '') : '不正解…正解は「' + currentQuestion.options[currentQuestion.correct] + '」' }}</span>
+    </div>
+  </div>
+
+  <!-- RESULT SCREEN -->
+  <div v-else-if="screen === 'result'" class="result-screen">
+    <div class="result-title" :style="{ color: resultColor }">{{ resultTitle }}</div>
+    <div class="result-grade">{{ resultGrade }}</div>
+
+    <div class="score-ring">
+      <svg width="160" height="160" viewBox="0 0 160 160">
+        <circle class="ring-track" cx="80" cy="80" r="68"/>
+        <circle
+          class="ring-fill"
+          cx="80" cy="80" r="68"
+          :stroke="resultColor"
+          :stroke-dasharray="ringCircumference"
+          :stroke-dashoffset="ringOffset"
+        />
+      </svg>
+      <div class="score-text">
+        <div class="score-num">{{ score }}</div>
+        <div class="score-total">/ {{ maxScore }}</div>
+      </div>
+    </div>
+
+    <div class="stats-row">
+      <div class="stat-item">
+        <span class="stat-val green">{{ correctCount }}</span>
+        <span class="stat-label">正解</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-val red">{{ questions.length - correctCount }}</span>
+        <span class="stat-label">不正解</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-val">{{ maxCombo }}</span>
+        <span class="stat-label">最大コンボ</span>
+      </div>
+    </div>
+
+    <button class="retry-btn" @click="backToTitle">カテゴリー変更</button>
+    <button class="start-btn" style="width:auto;padding:14px 40px" @click="restartSame">もう一度</button>
+  </div>
+
+  <!-- Combo Flash -->
+  <div v-if="showCombo" class="combo-flash">COMBO ×{{ combo }}</div>
+</div>
+
+<script>
+const { createApp, ref, computed, onUnmounted } = Vue;
+
+const allQuestions = {
+  science: [
+    { question: "水の化学式は何ですか？", options: ["H₂O", "CO₂", "O₂", "NaCl"], correct: 0 },
+    { question: "地球から最も近い恒星は何ですか？", options: ["シリウス", "プロキシマ・ケンタウリ", "太陽", "ベガ"], correct: 2 },
+    { question: "DNAの塩基配列の中で、アデニン（A）と対になる塩基はどれですか？", options: ["グアニン", "シトシン", "チミン", "ウラシル"], correct: 2 },
+    { question: "光の速度は約何km/sですか？", options: ["30万km/s", "3万km/s", "300万km/s", "3000km/s"], correct: 0 },
+    { question: "人体で最も大きな器官は何ですか？", options: ["肝臓", "脳", "皮膚", "肺"], correct: 2 },
+    { question: "元素周期表で最も軽い元素は何ですか？", options: ["ヘリウム", "酸素", "水素", "炭素"], correct: 2 },
+    { question: "月の満ち欠けの周期は約何日ですか？", options: ["7日", "15日", "29.5日", "365日"], correct: 2 },
+  ],
+  history: [
+    { question: "第一次世界大戦が始まった年は？", options: ["1904年", "1914年", "1918年", "1939年"], correct: 1 },
+    { question: "エジプトのピラミッドはどのファラオのために建てられましたか（最大のもの）？", options: ["ツタンカーメン", "ラムセス2世", "クフ王", "アクエンアテン"], correct: 2 },
+    { question: "日本で江戸幕府を開いたのは誰ですか？", options: ["豊臣秀吉", "織田信長", "徳川家康", "足利尊氏"], correct: 2 },
+    { question: "アメリカ独立宣言が署名された年は？", options: ["1766年", "1776年", "1783年", "1789年"], correct: 1 },
+    { question: "ナポレオンが流刑になった島はどこですか？", options: ["コルシカ島", "セントヘレナ島", "エルバ島", "マルタ島"], correct: 1 },
+    { question: "日本が鎖国を終わらせたのは何年ですか？", options: ["1853年", "1858年", "1868年", "1889年"], correct: 1 },
+    { question: "ローマ帝国を滅亡させた民族はどれですか（西ローマ）？", options: ["フン族", "ゴート族", "ヴァンダル族", "オドアケル率いるゲルマン人"], correct: 3 },
+  ],
+  geography: [
+    { question: "世界で最も長い川はどれですか？", options: ["アマゾン川", "ミシシッピ川", "ナイル川", "揚子江"], correct: 2 },
+    { question: "日本の都道府県で最も面積が大きいのはどこですか？", options: ["北海道", "岩手県", "長野県", "新潟県"], correct: 0 },
+    { question: "エベレストがある山脈はどれですか？", options: ["アルプス山脈", "アンデス山脈", "ヒマラヤ山脈", "ロッキー山脈"], correct: 2 },
+    { question: "サハラ砂漠はどの大陸にありますか？", options: ["アジア", "アフリカ", "オーストラリア", "南アメリカ"], correct: 1 },
+    { question: "世界で最も人口の多い国はどこですか？", options: ["インド", "中国", "アメリカ", "インドネシア"], correct: 0 },
+    { question: "東京の時間帯（タイムゾーン）はUTCから何時間進んでいますか？", options: ["UTC+8", "UTC+9", "UTC+10", "UTC+7"], correct: 1 },
+    { question: "オーストラリアの首都はどこですか？", options: ["シドニー", "メルボルン", "キャンベラ", "ブリスベン"], correct: 2 },
+  ],
+  tech: [
+    { question: "WWW（ワールドワイドウェブ）を発明したのは誰ですか？", options: ["ビル・ゲイツ", "スティーブ・ジョブズ", "ティム・バーナーズ＝リー", "マーク・ザッカーバーグ"], correct: 2 },
+    { question: "最初のコンピューターウイルスの名前は何ですか？", options: ["ILOVEYOU", "Creeper", "Melissa", "Stuxnet"], correct: 1 },
+    { question: "JavaScriptを開発したのは誰ですか？", options: ["グイド・ヴァン・ロッサム", "ブレンダン・アイク", "ジェームズ・ゴスリング", "デニス・リッチー"], correct: 1 },
+    { question: "1バイトは何ビットですか？", options: ["4ビット", "8ビット", "16ビット", "32ビット"], correct: 1 },
+    { question: "「iPhone」を最初に発表したのは何年ですか？", options: ["2005年", "2006年", "2007年", "2008年"], correct: 2 },
+    { question: "人工知能の「AI」は何の略ですか？", options: ["Auto Intelligence", "Artificial Intelligence", "Advanced Integration", "Automated Interface"], correct: 1 },
+    { question: "Pythonプログラミング言語の名前の由来は？", options: ["ヘビのパイソン", "テレビ番組『Monty Python』", "開発者の名前", "算数の用語"], correct: 1 },
+  ],
+};
+
+const categoryDefs = [
+  { id: 'science',   name: '科学',     icon: '🔬' },
+  { id: 'history',   name: '歴史',     icon: '🏛️' },
+  { id: 'geography', name: '地理',     icon: '🌍' },
+  { id: 'tech',      name: 'テクノロジー', icon: '💻' },
+];
+
+createApp({
+  setup() {
+    const screen = ref('title');
+    const categories = categoryDefs;
+    const selectedCategory = ref(null);
+
+    const questions = ref([]);
+    const currentIndex = ref(0);
+    const score = ref(0);
+    const correctCount = ref(0);
+    const combo = ref(0);
+    const maxCombo = ref(0);
+    const answered = ref(false);
+    const selectedAnswer = ref(null);
+    const lastCorrect = ref(false);
+    const timeLeft = ref(20);
+    const showCombo = ref(false);
+    let timer = null;
+
+    const circumference = 2 * Math.PI * 24;
+    const ringCircumference = 2 * Math.PI * 68;
+
+    const currentQuestion = computed(() => questions.value[currentIndex.value] || {});
+    const progressPct = computed(() => (currentIndex.value / questions.value.length) * 100);
+    const timerOffset = computed(() => circumference * (1 - timeLeft.value / 20));
+    const timerColor = computed(() => {
+      if (timeLeft.value > 10) return '#4dffd2';
+      if (timeLeft.value > 5) return '#f0e040';
+      return '#ff4d6d';
+    });
+
+    const maxScore = computed(() => questions.value.length * 100 * 3);
+    const ringOffset = computed(() => {
+      const pct = score.value / maxScore.value;
+      return ringCircumference * (1 - pct);
+    });
+
+    const resultTitle = computed(() => {
+      const pct = correctCount.value / questions.value.length;
+      if (pct >= 0.9) return 'PERFECT';
+      if (pct >= 0.7) return 'GREAT';
+      if (pct >= 0.5) return 'GOOD';
+      return 'TRY AGAIN';
+    });
+
+    const resultColor = computed(() => {
+      const pct = correctCount.value / questions.value.length;
+      if (pct >= 0.9) return '#f0e040';
+      if (pct >= 0.7) return '#4dffd2';
+      if (pct >= 0.5) return '#a78bfa';
+      return '#ff4d6d';
+    });
+
+    const resultGrade = computed(() => {
+      const pct = correctCount.value / questions.value.length;
+      if (pct >= 0.9) return 'RANK S — 素晴らしい！';
+      if (pct >= 0.7) return 'RANK A — よくできました';
+      if (pct >= 0.5) return 'RANK B — もう少し！';
+      return 'RANK C — 次はがんばろう';
+    });
+
+    function shuffle(arr) {
+      return [...arr].sort(() => Math.random() - 0.5);
+    }
+
+    function startGame() {
+      questions.value = shuffle(allQuestions[selectedCategory.value]).slice(0, 7);
+      currentIndex.value = 0;
+      score.value = 0;
+      correctCount.value = 0;
+      combo.value = 0;
+      maxCombo.value = 0;
+      answered.value = false;
+      selectedAnswer.value = null;
+      screen.value = 'quiz';
+      startTimer();
+    }
+
+    function startTimer() {
+      clearInterval(timer);
+      timeLeft.value = 20;
+      timer = setInterval(() => {
+        timeLeft.value--;
+        if (timeLeft.value <= 0) {
+          clearInterval(timer);
+          if (!answered.value) {
+            answered.value = true;
+            selectedAnswer.value = -1;
+            lastCorrect.value = false;
+            combo.value = 0;
+            setTimeout(nextQuestion, 1800);
+          }
+        }
+      }, 1000);
+    }
+
+    function selectAnswer(i) {
+      if (answered.value) return;
+      clearInterval(timer);
+      answered.value = true;
+      selectedAnswer.value = i;
+      const correct = i === currentQuestion.value.correct;
+      lastCorrect.value = correct;
+
+      if (correct) {
+        correctCount.value++;
+        combo.value++;
+        if (combo.value > maxCombo.value) maxCombo.value = combo.value;
+        const timeBonus = Math.floor(timeLeft.value / 20 * 50);
+        const comboBonus = Math.min(combo.value, 3);
+        score.value += (50 + timeBonus) * comboBonus;
+        if (combo.value >= 2) {
+          showCombo.value = true;
+          setTimeout(() => showCombo.value = false, 800);
+        }
+      } else {
+        combo.value = 0;
+      }
+
+      setTimeout(nextQuestion, 1800);
+    }
+
+    function nextQuestion() {
+      if (currentIndex.value + 1 >= questions.value.length) {
+        screen.value = 'result';
+        return;
+      }
+      currentIndex.value++;
+      answered.value = false;
+      selectedAnswer.value = null;
+      startTimer();
+    }
+
+    function backToTitle() {
+      clearInterval(timer);
+      selectedCategory.value = null;
+      screen.value = 'title';
+    }
+
+    function restartSame() {
+      clearInterval(timer);
+      startGame();
+    }
+
+    onUnmounted(() => clearInterval(timer));
+
+    return {
+      screen, categories, selectedCategory,
+      questions, currentIndex, currentQuestion,
+      score, correctCount, combo, maxCombo,
+      answered, selectedAnswer, lastCorrect,
+      timeLeft, showCombo, progressPct,
+      circumference, timerOffset, timerColor,
+      maxScore, ringCircumference, ringOffset,
+      resultTitle, resultColor, resultGrade,
+      startGame, selectAnswer, backToTitle, restartSame,
+    };
+  }
+}).mount('#app');
+</script>
+</body>
+</html>
